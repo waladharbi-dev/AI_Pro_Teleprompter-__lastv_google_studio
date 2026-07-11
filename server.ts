@@ -115,7 +115,7 @@ class AzureSpeechService implements ISpeechService {
     let recognizer: sdk.SpeechRecognizer;
     if (language && language !== "auto") {
       speechConfig.speechRecognitionLanguage = language;
-      recognizer = (sdk.SpeechRecognizer as any).FromConfig(speechConfig, audioConfig);
+      recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
     } else {
       speechConfig.speechRecognitionLanguage = "";
       const autoDetectConfig = this.getAutoDetectConfig();

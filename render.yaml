@@ -1,0 +1,29 @@
+# Render Blueprint Specification (render.yaml)
+# For more details, see https://render.com/docs/blueprints
+
+services:
+  - type: web
+    name: ai-teleprompter-fullstack
+    env: node
+    plan: free # Render Free tier (change to 'starter', 'standard', etc. for production scaling)
+    
+    # 1. Build and Compile Commands
+    # We install all dependencies (including devDependencies like esbuild/typescript),
+    # then run the combined build script which builds the Vite client and bundles the Express server.
+    buildCommand: npm install && npm run build
+    
+    # 2. Production Start Command
+    # Runs the pre-bundled CJS server using Node.js
+    startCommand: npm run start
+    
+    # 3. Environment Variable Configurations
+    envVars:
+      - key: NODE_ENV
+        value: production
+      
+      - key: PORT
+        value: 3000 # Default port; Render maps external traffic to this port
+        
+      - key: GEMINI_API_KEY
+        sync: false
+        placeholder: "Enter your Google Gemini API Key from Google AI Studio"

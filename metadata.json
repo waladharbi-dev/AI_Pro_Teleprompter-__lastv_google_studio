@@ -1,0 +1,6 @@
+{
+  "name": "AI Teleprompter",
+  "description": "An elegant, high-performance, browser-based AI Teleprompter with real-time streaming, advanced horizontal/vertical mirroring modes, customizable typography, and auto-scroll control.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -649,11 +649,6 @@ root.innerHTML = `
     </div>
 
 
-    <!-- Mobile Auto Mode Mic FAB -->
-    <button id="mobile-fab-mic" class="hidden md:hidden fixed bottom-20 right-6 w-14 h-14 rounded-full shadow-2xl border items-center justify-center transition-all duration-300 z-30 select-none touch-none bg-zinc-800 border-zinc-700 text-zinc-300" title="Toggle Always Listen">
-      <div id="mobile-fab-pulse" class="absolute inset-0 rounded-full bg-cyan-500/30 animate-ping opacity-0"></div>
-      <span id="mobile-fab-icon" class="text-xl relative z-10">🎤</span>
-    </button>
   </main>
 `;
 
@@ -1096,20 +1091,7 @@ function applyTheme(themeName: string) {
 }
 
 function updatePttButtonVisibility() {
-  // Detect if touch support is available (mobile, tablet, or touch-capable device)
-  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  const isManual = settings.controlMode === "manual";
-
-  const mobileFabMic = document.getElementById("mobile-fab-mic");
-  if (mobileFabMic) {
-    if (isTouch && !isManual) {
-      mobileFabMic.classList.remove("hidden");
-      mobileFabMic.classList.add("flex");
-    } else {
-      mobileFabMic.classList.remove("flex");
-      mobileFabMic.classList.add("hidden");
-    }
-  }
+  // Mobile FAB and PTT buttons removed
 }
 
 // Apply Control Mode (Auto / Manual)
@@ -2136,53 +2118,6 @@ function updateAlwaysListenStatus(status: "listening" | "speech_detected" | "tra
     }
   }
 
-  // --- MOBILE FAB & STATUS UPDATE ---
-  const mobileFabMic = document.getElementById("mobile-fab-mic");
-  const mobileFabIcon = document.getElementById("mobile-fab-icon");
-  const mobileFabPulse = document.getElementById("mobile-fab-pulse");
-  
-  if (mobileFabMic && settings.controlMode === "auto") {
-    // Reset classes
-    mobileFabMic.className = "flex md:hidden fixed bottom-20 right-6 w-14 h-14 rounded-full shadow-2xl border items-center justify-center transition-all duration-300 z-30 select-none touch-none";
-    if (mobileFabPulse) mobileFabPulse.className = "absolute inset-0 rounded-full animate-ping opacity-0";
-    
-    switch (status) {
-      case "listening":
-        mobileFabMic.classList.add("bg-cyan-950/60", "border-cyan-500/80", "text-cyan-400");
-        if (mobileFabPulse) mobileFabPulse.className = "absolute inset-0 rounded-full bg-cyan-500/30 animate-ping opacity-100";
-        if (mobileFabIcon) mobileFabIcon.textContent = "🎤";
-        break;
-      case "speech_detected":
-        mobileFabMic.classList.add("bg-orange-950/60", "border-orange-500/80", "text-orange-400", "animate-bounce");
-        if (mobileFabPulse) mobileFabPulse.className = "absolute inset-0 rounded-full bg-orange-500/30 animate-ping opacity-100";
-        if (mobileFabIcon) mobileFabIcon.textContent = "🗣️";
-        break;
-      case "transcribing":
-      case "processing":
-        mobileFabMic.classList.add("bg-purple-950/60", "border-purple-500/80", "text-purple-400", "animate-pulse");
-        if (mobileFabIcon) mobileFabIcon.textContent = "⏳";
-        break;
-      case "understanding":
-      case "sending_to_ai":
-        mobileFabMic.classList.add("bg-yellow-950/60", "border-yellow-500/80", "text-yellow-400", "animate-pulse");
-        if (mobileFabIcon) mobileFabIcon.textContent = "🧠";
-        break;
-      case "generating":
-      case "streaming":
-        mobileFabMic.classList.add("bg-emerald-950/60", "border-emerald-500/80", "text-emerald-400", "animate-pulse");
-        if (mobileFabPulse) mobileFabPulse.className = "absolute inset-0 rounded-full bg-emerald-500/30 animate-ping opacity-100";
-        if (mobileFabIcon) mobileFabIcon.textContent = "✍️";
-        break;
-      case "ready":
-        mobileFabMic.classList.add("bg-green-950/60", "border-green-500/80", "text-green-400");
-        if (mobileFabIcon) mobileFabIcon.textContent = "✅";
-        break;
-      case "waiting_continuation":
-        mobileFabMic.classList.add("bg-zinc-800", "border-zinc-700/50", "text-zinc-400", "animate-pulse");
-        if (mobileFabIcon) mobileFabIcon.textContent = "💬";
-        break;
-    }
-  }
 }
 
 async function startAlwaysListen() {
@@ -2206,8 +2141,15 @@ async function startAlwaysListen() {
 
   // Instantiating AudioContext synchronously inside user gesture scope
   try {
-    alwaysListenAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+    alwaysListenAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     console.log("[AlwaysListen] AudioContext instantiated synchronously in user gesture. State:", alwaysListenAudioContext.state);
+    if (alwaysListenAudioContext.state === "suspended") {
+      alwaysListenAudioContext.resume().then(() => {
+        console.log("[AlwaysListen] AudioContext resumed synchronously. State:", alwaysListenAudioContext.state);
+      }).catch((e) => {
+        console.warn("[AlwaysListen] Failed to resume synchronously in gesture:", e);
+      });
+    }
   } catch (err: any) {
     console.error("[AlwaysListen] Failed to instantiate AudioContext synchronously:", err);
   }
@@ -2223,14 +2165,20 @@ async function startAlwaysListen() {
   }
 
   try {
-    alwaysListenAudioStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: false,
-        autoGainControl: false
-      }
-    });
-    console.log("[AlwaysListen] Microphone access GRANTED (high-quality raw constraints).");
+    try {
+      alwaysListenAudioStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      });
+    } catch (strictErr) {
+      console.warn("[AlwaysListen] getUserMedia failed with strict constraints. Trying fallback simple { audio: true }...", strictErr);
+      alwaysListenAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
+    console.log("[AlwaysListen] Microphone access GRANTED.");
+    console.log("[AUTO] Permission Granted");
 
     if (!isAlwaysListenEnabled) {
       console.log("[AlwaysListen] Aborted alwaysListen initialization since it was stopped while permission was pending.");
@@ -2242,15 +2190,16 @@ async function startAlwaysListen() {
     }
 
     if (!alwaysListenAudioContext) {
-      alwaysListenAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      alwaysListenAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
 
     if (alwaysListenAudioContext.state === "suspended") {
       console.log("[AlwaysListen] AudioContext is suspended. Attempting to resume...");
       await alwaysListenAudioContext.resume().catch((e) => {
-        console.warn("[AlwaysListen] Failed to resume AudioContext immediately. Will auto-recover on interaction.", e);
+        console.warn("[AlwaysListen] Failed to resume AudioContext immediately.", e);
       });
     }
+    console.log("[AUTO] AudioContext Running");
 
     alwaysListenSourceNode = alwaysListenAudioContext.createMediaStreamSource(alwaysListenAudioStream);
     alwaysListenProcessorNode = alwaysListenAudioContext.createScriptProcessor(4096, 1, 1);
@@ -2269,6 +2218,8 @@ async function startAlwaysListen() {
     alwaysListenProcessorNode.onaudioprocess = (event) => {
       if (!isAlwaysListenEnabled) return;
 
+      console.log("[AUTO] Audio Frame Received");
+
       const inputChannel = event.inputBuffer.getChannelData(0);
 
       // Calculate RMS for VAD
@@ -2277,6 +2228,7 @@ async function startAlwaysListen() {
         sumSquare += inputChannel[i] * inputChannel[i];
       }
       const rms = Math.sqrt(sumSquare / inputChannel.length);
+      console.log(`[AUTO] RMS = ${rms.toFixed(5)}`);
       
       let threshold = VAD_RMS_THRESHOLD;
       if (isMobile) {
@@ -2298,6 +2250,7 @@ async function startAlwaysListen() {
           isUserSpeaking = true;
           speechStartTime = now;
           silenceStartTime = null;
+          console.log("[AUTO] Voice Detected");
           console.log(`[AlwaysListen] Speech DETECTED! (RMS: ${rms.toFixed(4)}, Threshold: ${threshold.toFixed(4)})`);
 
           // Cancel any scheduled send timeouts because user has started speaking again
@@ -2325,8 +2278,10 @@ async function startAlwaysListen() {
         if (isUserSpeaking) {
           if (silenceStartTime === null) {
             silenceStartTime = now;
+            console.log("[AUTO] Silence Timer Started");
           } else if (now - silenceStartTime >= VAD_SILENCE_DURATION_MS) {
             // Silence reached -> Commit and dispatch utterance
+            console.log("[AUTO] Recording Stop");
             console.log("[AlwaysListen] Silence limit reached. Committing utterance...");
 
             const speechDuration = now - VAD_SILENCE_DURATION_MS - (speechStartTime || now);
@@ -2370,6 +2325,7 @@ async function startAlwaysListen() {
 
     alwaysListenSourceNode.connect(alwaysListenProcessorNode);
     alwaysListenProcessorNode.connect(alwaysListenAudioContext.destination);
+    console.log("[AUTO] MediaRecorder Started");
     console.log("[AlwaysListen] Ready. Monitoring mic with Voice Activity Detection.");
 
   } catch (err: any) {
@@ -2388,8 +2344,10 @@ async function processAlwaysListenUtterance(chunks: Float32Array[], totalLength:
     updateAlwaysListenStatus("processing");
 
     const wavBlob = getWavBlob(chunks, totalLength, sampleRate);
+    console.log("[AUTO] WAV Generated");
     console.log(`[AlwaysListen] WAV created. Size: ${wavBlob.size} bytes. Duration: ${speechDuration}ms`);
 
+    console.log("[AUTO] Upload Started");
     const response = await fetch(`/api/azure-stt?duration=${speechDuration}&language=${settings.speechLanguage || "auto"}`, {
       method: "POST",
       headers: {
@@ -2411,6 +2369,7 @@ async function processAlwaysListenUtterance(chunks: Float32Array[], totalLength:
 
     const resData = await response.json();
     const transcript = (resData.text || "").trim();
+    console.log("[AUTO] Azure Finished");
     console.log(`[AlwaysListen] Output text: "${transcript}"`);
 
     const speechProcessingTime = Date.now() - startProcessingTime;
@@ -2484,6 +2443,7 @@ async function executeAlwaysListenSend(text: string) {
   alwaysListenAccumulatedTranscript = "";
 
   updateAlwaysListenStatus("sending_to_ai");
+  console.log("[AUTO] AI Streaming Started");
 
   try {
     const queryResponse = await fetch("/api/webhook/query", {
@@ -3062,20 +3022,6 @@ const handleDeviceChange = async () => {
   }
 };
 
-const mobileFabHandler = () => {
-  if (isAlwaysListenEnabled) {
-    stopAlwaysListen();
-  } else {
-    startAlwaysListen();
-  }
-};
-
-// Bind elements
-const mobileFabMic = document.getElementById("mobile-fab-mic");
-if (mobileFabMic) {
-  mobileFabMic.addEventListener("click", mobileFabHandler);
-}
-
 window.addEventListener("click", resumeAlwaysListenAudioContext, { passive: true });
 window.addEventListener("touchstart", resumeAlwaysListenAudioContext, { passive: true });
 document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -3108,10 +3054,6 @@ window.addEventListener("mouseup", manualPointerUpHandler, { passive: false });
   window.removeEventListener("focus", handleVisibilityChange);
   if (navigator.mediaDevices && navigator.mediaDevices.removeEventListener) {
     navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
-  }
-  const mobileFabMicEl = document.getElementById("mobile-fab-mic");
-  if (mobileFabMicEl) {
-    mobileFabMicEl.removeEventListener("click", mobileFabHandler);
   }
 
   if (pttIndicator) {
@@ -3261,6 +3203,7 @@ function setupSseUpdates() {
     try {
       const data = JSON.parse(event.data);
       if (data.type === "stream_start") {
+        console.log("[AUTO] AI Streaming Started");
         console.log(`[DIAGNOSTIC - SSE STREAM START] New stream started for query: "${data.queryText}"`);
         isGenerating = true;
         updateAlwaysListenStatus("generating");

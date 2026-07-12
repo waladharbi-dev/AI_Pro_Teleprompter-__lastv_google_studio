@@ -648,11 +648,6 @@ root.innerHTML = `
 
     </div>
 
-    <!-- Push-to-Talk Button (Large, bottom-docked on touch devices in Manual Mode) -->
-    <button id="ptt-touch-btn" class="hidden items-center justify-center space-x-3 px-6 py-4 bg-zinc-900/90 hover:bg-zinc-800 backdrop-blur-md text-rose-400 border border-rose-500/30 rounded-2xl shadow-xl transition-all font-semibold select-none touch-none z-30 absolute bottom-6 left-6 right-6 max-w-md mx-auto" title="Hold to Talk (PTT)">
-      <span class="text-lg">🎙️</span>
-      <span id="ptt-btn-text">Hold to Talk</span>
-    </button>
 
     <!-- Mobile Auto Mode Mic FAB -->
     <button id="mobile-fab-mic" class="hidden md:hidden fixed bottom-20 right-6 w-14 h-14 rounded-full shadow-2xl border items-center justify-center transition-all duration-300 z-30 select-none touch-none bg-zinc-800 border-zinc-700 text-zinc-300" title="Toggle Always Listen">
@@ -731,7 +726,6 @@ const alwaysListenBtnText = document.getElementById("always-listen-btn-text") as
 const alwaysListenStatusSep = document.getElementById("always-listen-status-sep") as HTMLElement;
 const alwaysListenStatusIndicator = document.getElementById("always-listen-status-indicator") as HTMLElement;
 const alwaysListenStatusText = document.getElementById("always-listen-status-text") as HTMLSpanElement;
-const pttTouchBtn = document.getElementById("ptt-touch-btn") as HTMLButtonElement;
 
 const prompterScrollContainer = document.getElementById("prompter-scroll-container") as HTMLElement;
 const prompterMirrorWrapper = document.getElementById("prompter-mirror-wrapper") as HTMLElement;
@@ -1102,18 +1096,9 @@ function applyTheme(themeName: string) {
 }
 
 function updatePttButtonVisibility() {
-  if (!pttTouchBtn) return;
   // Detect if touch support is available (mobile, tablet, or touch-capable device)
   const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   const isManual = settings.controlMode === "manual";
-  
-  if (isTouch && isManual) {
-    pttTouchBtn.classList.remove("hidden");
-    pttTouchBtn.classList.add("flex");
-  } else {
-    pttTouchBtn.classList.remove("flex");
-    pttTouchBtn.classList.add("hidden");
-  }
 
   const mobileFabMic = document.getElementById("mobile-fab-mic");
   if (mobileFabMic) {
@@ -1672,45 +1657,6 @@ if (alwaysListenToggleBtn) {
   });
 }
 
-if (pttTouchBtn) {
-  const pttBtnText = document.getElementById("ptt-btn-text");
-  
-  const handlePttStart = (e: Event) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Add visual feedback
-    pttTouchBtn.classList.remove("bg-zinc-800", "border-zinc-700/50", "text-zinc-300");
-    pttTouchBtn.classList.add("bg-rose-950/60", "border-rose-500/80", "text-rose-400", "animate-pulse");
-    if (pttBtnText) pttBtnText.innerText = "Listening...";
-    
-    startPttRecording();
-  };
-  
-  const handlePttEnd = (e: Event) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Restore visual feedback
-    pttTouchBtn.classList.remove("bg-rose-950/60", "border-rose-500/80", "text-rose-400", "animate-pulse");
-    pttTouchBtn.classList.add("bg-zinc-800", "border-zinc-700/50", "text-zinc-300");
-    if (pttBtnText) pttBtnText.innerText = "Hold to Talk";
-    
-    stopPttRecording();
-  };
-  
-  pttTouchBtn.style.touchAction = "none";
-  
-  // Pointer events (modern touch & mouse)
-  pttTouchBtn.addEventListener("pointerdown", handlePttStart, { passive: false });
-  pttTouchBtn.addEventListener("pointerup", handlePttEnd, { passive: false });
-  pttTouchBtn.addEventListener("pointercancel", handlePttEnd, { passive: false });
-  
-  // Touch events (fallback)
-  pttTouchBtn.addEventListener("touchstart", handlePttStart, { passive: false });
-  pttTouchBtn.addEventListener("touchend", handlePttEnd, { passive: false });
-  pttTouchBtn.addEventListener("touchcancel", handlePttEnd, { passive: false });
-}
 
 // --- MOBILE UI INTERACTION BINDS & HELPER FUNCTIONS ---
 function updateConnectionStatus(isConnected: boolean) {

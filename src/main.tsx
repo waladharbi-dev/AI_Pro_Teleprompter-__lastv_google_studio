@@ -112,7 +112,7 @@ graph LR
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let currentScript: string = DEFAULT_SCRIPT;
 let isGenerating: boolean = false;
-let isRightMouseDown: boolean = false;
+let isMiddleMouseDown: boolean = false;
 let animationFrameId: number | null = null;
 let lastTimestamp: number = 0;
 let scrollAccumulator: number = 0;
@@ -567,7 +567,7 @@ root.innerHTML = `
         <!-- Control Mode Toggle -->
         <div class="flex items-center bg-zinc-950 p-1 rounded-lg border border-zinc-800 text-[11px] shrink-0 select-none">
           <button id="mode-auto-btn" class="px-2.5 py-1 rounded-md font-semibold transition-colors bg-emerald-600 text-white" title="Automatic Voice Activity Detection Mode">Auto Mode</button>
-          <button id="mode-manual-btn" class="px-2.5 py-1 rounded-md font-semibold transition-colors text-zinc-400 hover:text-zinc-200" title="Manual Control Mode (Hold Right-Click to Talk)">Manual Mode</button>
+          <button id="mode-manual-btn" class="px-2.5 py-1 rounded-md font-semibold transition-colors text-zinc-400 hover:text-zinc-200" title="Manual Control Mode (Hold Middle-Click to Talk)">Manual Mode</button>
         </div>
 
         <span class="hidden md:inline-block w-px h-5 bg-zinc-800 mx-1"></span>
@@ -652,6 +652,12 @@ root.innerHTML = `
     <button id="ptt-touch-btn" class="hidden items-center justify-center space-x-3 px-6 py-4 bg-zinc-900/90 hover:bg-zinc-800 backdrop-blur-md text-rose-400 border border-rose-500/30 rounded-2xl shadow-xl transition-all font-semibold select-none touch-none z-30 absolute bottom-6 left-6 right-6 max-w-md mx-auto" title="Hold to Talk (PTT)">
       <span class="text-lg">🎙️</span>
       <span id="ptt-btn-text">Hold to Talk</span>
+    </button>
+
+    <!-- Mobile Auto Mode Mic FAB -->
+    <button id="mobile-fab-mic" class="hidden md:hidden fixed bottom-20 right-6 w-14 h-14 rounded-full shadow-2xl border items-center justify-center transition-all duration-300 z-30 select-none touch-none bg-zinc-800 border-zinc-700 text-zinc-300" title="Toggle Always Listen">
+      <div id="mobile-fab-pulse" class="absolute inset-0 rounded-full bg-cyan-500/30 animate-ping opacity-0"></div>
+      <span id="mobile-fab-icon" class="text-xl relative z-10">🎤</span>
     </button>
   </main>
 `;
@@ -1108,6 +1114,17 @@ function updatePttButtonVisibility() {
     pttTouchBtn.classList.remove("flex");
     pttTouchBtn.classList.add("hidden");
   }
+
+  const mobileFabMic = document.getElementById("mobile-fab-mic");
+  if (mobileFabMic) {
+    if (isTouch && !isManual) {
+      mobileFabMic.classList.remove("hidden");
+      mobileFabMic.classList.add("flex");
+    } else {
+      mobileFabMic.classList.remove("flex");
+      mobileFabMic.classList.add("hidden");
+    }
+  }
 }
 
 // Apply Control Mode (Auto / Manual)
@@ -1128,7 +1145,7 @@ function applyControlMode(mode: "auto" | "manual", silent = false) {
       modeManualBtn.className = "px-2.5 py-1 rounded-md font-semibold transition-colors bg-emerald-600 text-white";
     }
     if (!silent) {
-      showToast("Switched to Manual Mode. Hold right-click to speak.", "info");
+      showToast("Switched to Manual Mode. Hold middle-click to speak.", "info");
     }
   } else {
     // Update button styling
@@ -1908,6 +1925,7 @@ let speechStartTime: number | null = null;
 // Intelligent Endpoint State Variables
 let alwaysListenAccumulatedTranscript = "";
 let alwaysListenSendTimeout: any = null;
+let wakeLock: any = null;
 
 // ============================================================================
 // INTELLIGENT ENDPOINT ENGINE & QUESTION COMPLETION ANALYZER
@@ -2240,6 +2258,24 @@ async function startAlwaysListen() {
 
   updateAlwaysListenStatus("listening");
 
+  // Instantiating AudioContext synchronously inside user gesture scope
+  try {
+    alwaysListenAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+    console.log("[AlwaysListen] AudioContext instantiated synchronously in user gesture. State:", alwaysListenAudioContext.state);
+  } catch (err: any) {
+    console.error("[AlwaysListen] Failed to instantiate AudioContext synchronously:", err);
+  }
+
+  // Request Wake Lock if supported
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await (navigator as any).wakeLock.request('screen');
+      console.log("[AlwaysListen] Screen Wake Lock acquired successfully.");
+    } catch (err: any) {
+      console.warn("[AlwaysListen] Failed to acquire Screen Wake Lock:", err);
+    }
+  }
+
   try {
     alwaysListenAudioStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -2250,7 +2286,26 @@ async function startAlwaysListen() {
     });
     console.log("[AlwaysListen] Microphone access GRANTED (high-quality raw constraints).");
 
-    alwaysListenAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+    if (!isAlwaysListenEnabled) {
+      console.log("[AlwaysListen] Aborted alwaysListen initialization since it was stopped while permission was pending.");
+      if (alwaysListenAudioStream) {
+        alwaysListenAudioStream.getTracks().forEach((track) => track.stop());
+        alwaysListenAudioStream = null;
+      }
+      return;
+    }
+
+    if (!alwaysListenAudioContext) {
+      alwaysListenAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+    }
+
+    if (alwaysListenAudioContext.state === "suspended") {
+      console.log("[AlwaysListen] AudioContext is suspended. Attempting to resume...");
+      await alwaysListenAudioContext.resume().catch((e) => {
+        console.warn("[AlwaysListen] Failed to resume AudioContext immediately. Will auto-recover on interaction.", e);
+      });
+    }
+
     alwaysListenSourceNode = alwaysListenAudioContext.createMediaStreamSource(alwaysListenAudioStream);
     alwaysListenProcessorNode = alwaysListenAudioContext.createScriptProcessor(4096, 1, 1);
 
@@ -2261,6 +2316,9 @@ async function startAlwaysListen() {
     isUserSpeaking = false;
     silenceStartTime = null;
     speechStartTime = null;
+
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    let dynamicNoiseFloor = 0.005;
 
     alwaysListenProcessorNode.onaudioprocess = (event) => {
       if (!isAlwaysListenEnabled) return;
@@ -2273,7 +2331,20 @@ async function startAlwaysListen() {
         sumSquare += inputChannel[i] * inputChannel[i];
       }
       const rms = Math.sqrt(sumSquare / inputChannel.length);
-      const isAboveThreshold = rms > VAD_RMS_THRESHOLD;
+      
+      let threshold = VAD_RMS_THRESHOLD;
+      if (isMobile) {
+        // Mobile-specific adaptive threshold tracking slow-moving minimum background noise floor
+        if (rms < dynamicNoiseFloor) {
+          dynamicNoiseFloor = 0.95 * dynamicNoiseFloor + 0.05 * rms;
+        } else {
+          dynamicNoiseFloor = 0.999 * dynamicNoiseFloor + 0.001 * rms;
+        }
+        dynamicNoiseFloor = Math.max(0.001, Math.min(0.02, dynamicNoiseFloor));
+        threshold = Math.max(0.006, dynamicNoiseFloor * 2.5);
+      }
+
+      const isAboveThreshold = rms > threshold;
       const now = Date.now();
 
       if (isAboveThreshold) {
@@ -2281,7 +2352,7 @@ async function startAlwaysListen() {
           isUserSpeaking = true;
           speechStartTime = now;
           silenceStartTime = null;
-          console.log("[AlwaysListen] Speech DETECTED! (RMS:", rms.toFixed(4), ")");
+          console.log(`[AlwaysListen] Speech DETECTED! (RMS: ${rms.toFixed(4)}, Threshold: ${threshold.toFixed(4)})`);
 
           // Cancel any scheduled send timeouts because user has started speaking again
           if (alwaysListenSendTimeout) {
@@ -2309,7 +2380,7 @@ async function startAlwaysListen() {
           if (silenceStartTime === null) {
             silenceStartTime = now;
           } else if (now - silenceStartTime >= VAD_SILENCE_DURATION_MS) {
-            // Silence reached 1000ms -> Commit and dispatch utterance
+            // Silence reached -> Commit and dispatch utterance
             console.log("[AlwaysListen] Silence limit reached. Committing utterance...");
 
             const speechDuration = now - VAD_SILENCE_DURATION_MS - (speechStartTime || now);
@@ -2505,6 +2576,15 @@ function stopAlwaysListen() {
     alwaysListenSendTimeout = null;
   }
 
+  // Release Screen Wake Lock safely
+  if (wakeLock) {
+    try {
+      wakeLock.release();
+    } catch (e) {}
+    wakeLock = null;
+    console.log("[AlwaysListen] Screen Wake Lock released.");
+  }
+
   alwaysListenAccumulatedTranscript = "";
 
   if (alwaysListenToggleBtn && alwaysListenBtnText && alwaysListenIcon) {
@@ -2659,8 +2739,8 @@ async function startPttRecording() {
     return;
   }
 
-  // 3. Double-check if the SPACEBAR or Right Mouse Button is still pressed when permission check finishes
-  const isCurrentlyHolding = settings.controlMode === "manual" ? isRightMouseDown : isSpacePressed;
+  // 3. Double-check if the SPACEBAR or Middle Mouse Button is still pressed when permission check finishes
+  const isCurrentlyHolding = settings.controlMode === "manual" ? isMiddleMouseDown : isSpacePressed;
   if (!isCurrentlyHolding) {
     console.log("[PTT] Holding trigger was released before permission was resolved.");
     if (activeAudioStream) {
@@ -2744,6 +2824,7 @@ async function stopPttRecording() {
 
   // WAV Blob creation using exact actual sample rate
   const wavBlob = getWavBlob(chunks, totalLength, actualSampleRate);
+  console.log("[PTT]\nUploading WAV...");
   console.log(`[PTT] Completed WAV file generation. Size: ${wavBlob.size} bytes. Duration: ${speechDuration}ms`);
 
   try {
@@ -2764,6 +2845,7 @@ async function stopPttRecording() {
 
     const resData = await response.json();
     const transcript = (resData.text || "").trim();
+    console.log("[PTT]\nTranscription completed.");
     console.log(`[PTT] Azure Speech SDK output: "${transcript}"`);
 
     const speechProcessingTime = Date.now() - startProcessingTime;
@@ -2789,6 +2871,7 @@ async function stopPttRecording() {
 async function sendWebhookQuery(queryText: string, metrics?: any) {
   showToast(`Recognized: "${queryText.length > 40 ? queryText.substring(0, 40) + '...' : queryText}"`, "success");
   
+  console.log("[PTT]\nSending prompt...");
   updateAlwaysListenStatus("sending_to_ai");
 
   try {
@@ -2884,58 +2967,145 @@ const keyupHandler = (e: KeyboardEvent) => {
   }
 };
 
-const manualPointerDownHandler = (e: PointerEvent) => {
+const logMouseEvent = (e: any) => {
+  const type = e.type;
+  const button = e.button;
+  const buttons = e.buttons;
+  const pointerType = e.pointerType;
+  const which = e.which;
+  const detail = e.detail;
+
+  if (pointerType) {
+    console.log(`${type}\nbutton=${button}\nbuttons=${buttons}\npointerType=${pointerType}\nwhich=${which}\ndetail=${detail}`);
+  } else {
+    console.log(`${type}\nbutton=${button}\nbuttons=${buttons}\nwhich=${which}\ndetail=${detail}`);
+  }
+};
+
+const manualPointerDownHandler = (e: PointerEvent | MouseEvent) => {
+  logMouseEvent(e);
   if (settings.controlMode !== "manual" || isTypingInInput()) return;
-  if (e.button === 2) { // Right mouse/pointer button
+  if (e.button === 1 || e.which === 2) { // Middle mouse/pointer button
     e.preventDefault();
     e.stopPropagation();
-    if (!isRightMouseDown) {
-      isRightMouseDown = true;
-      console.log("[Manual Mode] Right pointer down. Starting manual recording...");
+    if (!isMiddleMouseDown) {
+      isMiddleMouseDown = true;
+      console.log("[Manual Mode]\nMiddle Button Down\nStarting recording...");
       startPttRecording();
     }
   }
 };
 
-const manualPointerUpHandler = (e: PointerEvent) => {
+const manualPointerUpHandler = (e: PointerEvent | MouseEvent) => {
+  logMouseEvent(e);
   if (settings.controlMode !== "manual") return;
-  if (e.button === 2) { // Right mouse/pointer button
+  if (e.button === 1 || e.which === 2) { // Middle mouse/pointer button
     e.preventDefault();
     e.stopPropagation();
-    if (isRightMouseDown) {
-      isRightMouseDown = false;
-      console.log("[Manual Mode] Right pointer up. Stopping manual recording...");
+    if (isMiddleMouseDown) {
+      isMiddleMouseDown = false;
+      console.log("[Manual Mode]\nMiddle Button Up\nStopping recording...");
       stopPttRecording();
     }
   }
 };
 
-const manualPointerCancelHandler = (e: PointerEvent) => {
+const manualPointerCancelHandler = (e: PointerEvent | MouseEvent) => {
+  logMouseEvent(e);
   if (settings.controlMode !== "manual") return;
-  if (e.button === 2) { // Right mouse/pointer button
+  if (e.button === 1 || e.which === 2) { // Middle mouse/pointer button
     e.preventDefault();
     e.stopPropagation();
-    if (isRightMouseDown) {
-      isRightMouseDown = false;
-      console.log("[Manual Mode] Right pointer cancel. Stopping manual recording...");
+    if (isMiddleMouseDown) {
+      isMiddleMouseDown = false;
+      console.log("[Manual Mode]\nMiddle Button Up\nStopping recording...");
       stopPttRecording();
     }
   }
 };
 
-const manualContextMenuHandler = (e: MouseEvent) => {
-  if (settings.controlMode === "manual" && !isTypingInInput()) {
+const manualAuxClickHandler = (e: MouseEvent) => {
+  logMouseEvent(e);
+  if (settings.controlMode === "manual" && !isTypingInInput() && (e.button === 1 || e.which === 2)) {
     e.preventDefault();
     e.stopPropagation();
   }
 };
+
+// ============================================================================
+// MOBILE AUTO MODE: AUDIO INTERACTION, WAKE LOCK & BACKGROUND RESILIENCE HOOKS
+// ============================================================================
+
+const resumeAlwaysListenAudioContext = async () => {
+  if (isAlwaysListenEnabled && alwaysListenAudioContext && alwaysListenAudioContext.state === "suspended") {
+    console.log("[AlwaysListen] User interaction detected. Resuming AudioContext...");
+    await alwaysListenAudioContext.resume().catch(e => console.error("[AlwaysListen] Interaction resume error:", e));
+  }
+};
+
+const isStreamActive = (stream: MediaStream | null) => {
+  if (!stream) return false;
+  return stream.getTracks().some(track => track.readyState === 'live' && track.enabled);
+};
+
+const handleVisibilityChange = async () => {
+  if (document.visibilityState === 'visible') {
+    console.log("[Background Lifecycle] Tab/Window focused.");
+    if (isAlwaysListenEnabled) {
+      const isContextClosed = !alwaysListenAudioContext || alwaysListenAudioContext.state === 'closed';
+      const isStreamDead = !isStreamActive(alwaysListenAudioStream);
+      
+      if (isContextClosed || isStreamDead) {
+        console.log("[Background Lifecycle] Audio resources terminated in background. Recovering...");
+        stopAlwaysListen();
+        await startAlwaysListen();
+      } else if (alwaysListenAudioContext && alwaysListenAudioContext.state === 'suspended') {
+        console.log("[Background Lifecycle] Resuming suspended alwaysListenAudioContext.");
+        await alwaysListenAudioContext.resume().catch(e => console.error(e));
+      }
+    }
+  }
+};
+
+const handleDeviceChange = async () => {
+  console.log("[Audio Devices] Input device change detected.");
+  if (isAlwaysListenEnabled) {
+    console.log("[Audio Devices] Re-routing Always Listen to new active input device...");
+    stopAlwaysListen();
+    await startAlwaysListen();
+  }
+};
+
+const mobileFabHandler = () => {
+  if (isAlwaysListenEnabled) {
+    stopAlwaysListen();
+  } else {
+    startAlwaysListen();
+  }
+};
+
+// Bind elements
+const mobileFabMic = document.getElementById("mobile-fab-mic");
+if (mobileFabMic) {
+  mobileFabMic.addEventListener("click", mobileFabHandler);
+}
+
+window.addEventListener("click", resumeAlwaysListenAudioContext, { passive: true });
+window.addEventListener("touchstart", resumeAlwaysListenAudioContext, { passive: true });
+document.addEventListener("visibilitychange", handleVisibilityChange);
+window.addEventListener("focus", handleVisibilityChange);
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+  navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+}
 
 window.addEventListener("keydown", keydownHandler);
 window.addEventListener("keyup", keyupHandler);
 window.addEventListener("pointerdown", manualPointerDownHandler, { passive: false });
 window.addEventListener("pointerup", manualPointerUpHandler, { passive: false });
 window.addEventListener("pointercancel", manualPointerCancelHandler, { passive: false });
-window.addEventListener("contextmenu", manualContextMenuHandler, { passive: false });
+window.addEventListener("mousedown", manualPointerDownHandler, { passive: false });
+window.addEventListener("mouseup", manualPointerUpHandler, { passive: false });
+window.addEventListener("auxclick", manualAuxClickHandler, { passive: false });
 
 // Expose cleanup function to window for professional cleanup/unmounting compatibility
 (window as any).__cleanupPTT = () => {
@@ -2944,7 +3114,22 @@ window.addEventListener("contextmenu", manualContextMenuHandler, { passive: fals
   window.removeEventListener("pointerdown", manualPointerDownHandler);
   window.removeEventListener("pointerup", manualPointerUpHandler);
   window.removeEventListener("pointercancel", manualPointerCancelHandler);
-  window.removeEventListener("contextmenu", manualContextMenuHandler);
+  window.removeEventListener("mousedown", manualPointerDownHandler);
+  window.removeEventListener("mouseup", manualPointerUpHandler);
+  window.removeEventListener("auxclick", manualAuxClickHandler);
+
+  window.removeEventListener("click", resumeAlwaysListenAudioContext);
+  window.removeEventListener("touchstart", resumeAlwaysListenAudioContext);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
+  window.removeEventListener("focus", handleVisibilityChange);
+  if (navigator.mediaDevices && navigator.mediaDevices.removeEventListener) {
+    navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+  }
+  const mobileFabMicEl = document.getElementById("mobile-fab-mic");
+  if (mobileFabMicEl) {
+    mobileFabMicEl.removeEventListener("click", mobileFabHandler);
+  }
+
   if (pttIndicator) {
     pttIndicator.remove();
   }

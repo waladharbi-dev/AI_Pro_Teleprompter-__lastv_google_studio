@@ -112,7 +112,7 @@ graph LR
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let currentScript: string = DEFAULT_SCRIPT;
 let isGenerating: boolean = false;
-let isMiddleMouseDown: boolean = false;
+let isLeftMouseDown: boolean = false;
 let animationFrameId: number | null = null;
 let lastTimestamp: number = 0;
 let scrollAccumulator: number = 0;
@@ -2739,8 +2739,8 @@ async function startPttRecording() {
     return;
   }
 
-  // 3. Double-check if the SPACEBAR or Middle Mouse Button is still pressed when permission check finishes
-  const isCurrentlyHolding = settings.controlMode === "manual" ? isMiddleMouseDown : isSpacePressed;
+  // 3. Double-check if the SPACEBAR or Left Mouse Button is still pressed when permission check finishes
+  const isCurrentlyHolding = settings.controlMode === "manual" ? isLeftMouseDown : isSpacePressed;
   if (!isCurrentlyHolding) {
     console.log("[PTT] Holding trigger was released before permission was resolved.");
     if (activeAudioStream) {
@@ -2982,15 +2982,53 @@ const logMouseEvent = (e: any) => {
   }
 };
 
+const isInteractiveElement = (el: HTMLElement | null): boolean => {
+  if (!el) return false;
+  let current: HTMLElement | null = el;
+  while (current && current !== document.body) {
+    const tagName = current.tagName.toLowerCase();
+    const id = current.id || "";
+    const className = typeof current.className === "string" ? current.className : "";
+    if (
+      tagName === "button" ||
+      tagName === "input" ||
+      tagName === "select" ||
+      tagName === "textarea" ||
+      tagName === "a" ||
+      id === "sidebar" ||
+      id === "stage-header" ||
+      id === "mobile-top-bar" ||
+      id.includes("toast") ||
+      className.includes("toast") ||
+      current.getAttribute("role") === "button" ||
+      className.includes("cursor-pointer")
+    ) {
+      return true;
+    }
+    current = current.parentElement;
+  }
+  return false;
+};
+
 const manualPointerDownHandler = (e: PointerEvent | MouseEvent) => {
   logMouseEvent(e);
   if (settings.controlMode !== "manual" || isTypingInInput()) return;
-  if (e.button === 1 || e.which === 2) { // Middle mouse/pointer button
+  
+  // If it's a touch event, do not intercept left click to preserve touch scrolling
+  if ('pointerType' in e && e.pointerType === 'touch') {
+    return;
+  }
+
+  if (e.button === 0) { // Left mouse/pointer button
+    const target = e.target as HTMLElement;
+    if (isInteractiveElement(target)) {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
-    if (!isMiddleMouseDown) {
-      isMiddleMouseDown = true;
-      console.log("[Manual Mode]\nMiddle Button Down\nStarting recording...");
+    if (!isLeftMouseDown) {
+      isLeftMouseDown = true;
+      console.log("[Manual Mode]\nLeft Button Down\nStarting recording...");
       startPttRecording();
     }
   }
@@ -2999,12 +3037,17 @@ const manualPointerDownHandler = (e: PointerEvent | MouseEvent) => {
 const manualPointerUpHandler = (e: PointerEvent | MouseEvent) => {
   logMouseEvent(e);
   if (settings.controlMode !== "manual") return;
-  if (e.button === 1 || e.which === 2) { // Middle mouse/pointer button
-    e.preventDefault();
-    e.stopPropagation();
-    if (isMiddleMouseDown) {
-      isMiddleMouseDown = false;
-      console.log("[Manual Mode]\nMiddle Button Up\nStopping recording...");
+  
+  if ('pointerType' in e && e.pointerType === 'touch') {
+    return;
+  }
+
+  if (e.button === 0) { // Left mouse/pointer button
+    if (isLeftMouseDown) {
+      e.preventDefault();
+      e.stopPropagation();
+      isLeftMouseDown = false;
+      console.log("[Manual Mode]\nLeft Button Up\nStopping recording...");
       stopPttRecording();
     }
   }
@@ -3013,22 +3056,19 @@ const manualPointerUpHandler = (e: PointerEvent | MouseEvent) => {
 const manualPointerCancelHandler = (e: PointerEvent | MouseEvent) => {
   logMouseEvent(e);
   if (settings.controlMode !== "manual") return;
-  if (e.button === 1 || e.which === 2) { // Middle mouse/pointer button
-    e.preventDefault();
-    e.stopPropagation();
-    if (isMiddleMouseDown) {
-      isMiddleMouseDown = false;
-      console.log("[Manual Mode]\nMiddle Button Up\nStopping recording...");
+  
+  if ('pointerType' in e && e.pointerType === 'touch') {
+    return;
+  }
+
+  if (e.button === 0) { // Left mouse/pointer button
+    if (isLeftMouseDown) {
+      e.preventDefault();
+      e.stopPropagation();
+      isLeftMouseDown = false;
+      console.log("[Manual Mode]\nLeft Button Up (Cancel)\nStopping recording...");
       stopPttRecording();
     }
-  }
-};
-
-const manualAuxClickHandler = (e: MouseEvent) => {
-  logMouseEvent(e);
-  if (settings.controlMode === "manual" && !isTypingInInput() && (e.button === 1 || e.which === 2)) {
-    e.preventDefault();
-    e.stopPropagation();
   }
 };
 
@@ -3105,7 +3145,6 @@ window.addEventListener("pointerup", manualPointerUpHandler, { passive: false })
 window.addEventListener("pointercancel", manualPointerCancelHandler, { passive: false });
 window.addEventListener("mousedown", manualPointerDownHandler, { passive: false });
 window.addEventListener("mouseup", manualPointerUpHandler, { passive: false });
-window.addEventListener("auxclick", manualAuxClickHandler, { passive: false });
 
 // Expose cleanup function to window for professional cleanup/unmounting compatibility
 (window as any).__cleanupPTT = () => {
@@ -3116,7 +3155,6 @@ window.addEventListener("auxclick", manualAuxClickHandler, { passive: false });
   window.removeEventListener("pointercancel", manualPointerCancelHandler);
   window.removeEventListener("mousedown", manualPointerDownHandler);
   window.removeEventListener("mouseup", manualPointerUpHandler);
-  window.removeEventListener("auxclick", manualAuxClickHandler);
 
   window.removeEventListener("click", resumeAlwaysListenAudioContext);
   window.removeEventListener("touchstart", resumeAlwaysListenAudioContext);

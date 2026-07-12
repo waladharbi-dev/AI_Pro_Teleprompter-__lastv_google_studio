@@ -36,6 +36,13 @@
   scrollbar-width: none;
 }
 
+#sidebar-scroll-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
 /* Beautiful custom focus lines */
 .focus-indicator-top {
   border-top: 2px dashed rgba(16, 185, 129, 0.45);
@@ -198,6 +205,17 @@
     z-index: 50 !important;
     transform: translateY(100%) !important;
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  #sidebar-scroll-container {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
   }
 
   /* Slide up transitions driven by sidebar visibility classes */

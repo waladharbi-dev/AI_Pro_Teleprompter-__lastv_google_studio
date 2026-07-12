@@ -242,14 +242,15 @@ function saveSettings() {
 // UI Elements markup injection
 root.className = "h-screen w-screen flex flex-row overflow-hidden select-none bg-zinc-950 font-sans text-zinc-100";
 root.innerHTML = `
+  <!-- Mobile Drawer Backdrop Overlay (Outside sidebar to avoid translation and click clipping) -->
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/60 z-40 hidden transition-opacity duration-300 opacity-0 pointer-events-none md:hidden"></div>
+
   <!-- Collapsible Settings Panel (Left) -->
   <aside id="sidebar" class="w-80 md:w-96 flex flex-col border-r border-zinc-800 bg-zinc-900/90 backdrop-blur-md transition-all duration-300 fixed md:relative inset-y-0 left-0 z-50 md:z-30 flex-shrink-0">
     <!-- Drag Handle for Mobile Sheet -->
     <div class="md:hidden flex justify-center py-2.5 shrink-0 select-none">
       <div class="w-12 h-1 bg-zinc-700/80 rounded-full"></div>
     </div>
-    <!-- Mobile Drawer Backdrop Overlay -->
-    <div id="sidebar-backdrop" class="fixed inset-0 bg-black/60 z-40 hidden transition-opacity duration-300 opacity-0 pointer-events-none md:hidden"></div>
     <!-- Header -->
     <div class="p-5 md:p-6 border-b border-zinc-800 flex items-center justify-between shrink-0">
       <div class="flex items-center space-x-3">
@@ -270,14 +271,14 @@ root.innerHTML = `
     </div>
 
     <!-- Tabs Navigation -->
-    <div class="flex border-b border-zinc-800 text-sm font-medium">
+    <div class="flex border-b border-zinc-800 text-sm font-medium shrink-0">
       <button id="tab-btn-script" class="flex-1 py-3 text-center border-b-2 border-emerald-500 text-emerald-400 transition-colors" data-tab="script">Active Script</button>
       <button id="tab-btn-config" class="flex-1 py-3 text-center border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors" data-tab="config">Prompter</button>
       <button id="tab-btn-ai" class="flex-1 py-3 text-center border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors" data-tab="ai">AI Engine</button>
     </div>
 
     <!-- Scrollable Tab Content Container -->
-    <div class="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+    <div id="sidebar-scroll-container" class="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
       
       <!-- TAB 1: SCRIPT & GENERATION -->
       <div id="tab-content-script" class="space-y-5">
@@ -502,18 +503,13 @@ root.innerHTML = `
     </div>
 
     <!-- Collapsible Controls Footer -->
-    <div class="p-6 border-t border-zinc-800 bg-zinc-900 flex items-center space-x-3 text-xs text-zinc-500 font-medium">
+    <div class="p-6 border-t border-zinc-800 bg-zinc-900 flex items-center space-x-3 text-xs text-zinc-500 font-medium shrink-0">
       <kbd class="bg-zinc-950 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-800 font-mono">H</kbd>
       <span>Toggles sidebar drawer</span>
     </div>
   </aside>
 
-  <!-- Expand Sidebar button (Visible when sidebar is collapsed) -->
-  <button id="expand-sidebar-btn" class="hidden absolute left-3 top-3 md:left-4 md:top-4 p-3 md:p-2.5 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl border border-zinc-800 shadow-xl transition-all z-40 min-h-[44px] min-w-[44px] flex items-center justify-center" title="Expand Control Panel (Hotkey: H)">
-    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-    </svg>
-  </button>
+
 
   <!-- Right Primary Stage (Teleprompter Screen) -->
   <main id="prompter-stage" class="flex-1 flex flex-col h-full relative overflow-hidden bg-zinc-950 transition-colors duration-300">
@@ -656,7 +652,7 @@ root.innerHTML = `
 const sidebar = document.getElementById("sidebar") as HTMLElement;
 const sidebarBackdrop = document.getElementById("sidebar-backdrop") as HTMLElement;
 const collapseBtnSidebar = document.getElementById("collapse-btn-sidebar") as HTMLButtonElement;
-const expandSidebarBtn = document.getElementById("expand-sidebar-btn") as HTMLButtonElement;
+const expandSidebarBtn = document.getElementById("expand-sidebar-btn") as HTMLButtonElement | null;
 const hideControlsBtn = document.getElementById("hide-controls-btn") as HTMLButtonElement;
 const prompterStage = document.getElementById("prompter-stage") as HTMLElement;
 
@@ -883,6 +879,10 @@ function renderContent() {
 
 // Sidebar collapsibility
 function setSidebarState(hidden: boolean) {
+  if (!hidden) {
+    console.log("[MOBILE MENU] Open requested");
+  }
+
   settings.hideControls = hidden;
   saveSettings();
 
@@ -890,7 +890,9 @@ function setSidebarState(hidden: boolean) {
     sidebar.classList.add("-translate-x-full");
     sidebar.style.marginRight = `-${sidebar.clientWidth}px`;
     sidebar.classList.add("pointer-events-none");
-    expandSidebarBtn.classList.remove("hidden");
+    if (expandSidebarBtn) {
+      expandSidebarBtn.classList.remove("hidden");
+    }
     
     // Completely disable touch hit testing and visibility for safety
     sidebar.classList.add("invisible");
@@ -903,6 +905,15 @@ function setSidebarState(hidden: boolean) {
         }
       }, 300);
     }
+
+    // Unlock scrolling
+    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
+    if (prompterScrollContainer) {
+      prompterScrollContainer.style.overflowY = "auto";
+    }
+
+    console.log("[MOBILE MENU] Drawer closed");
   } else {
     // Re-enable visibility before animating back in
     sidebar.classList.remove("invisible");
@@ -910,7 +921,9 @@ function setSidebarState(hidden: boolean) {
     sidebar.classList.remove("-translate-x-full");
     sidebar.style.marginRight = "0px";
     sidebar.classList.remove("pointer-events-none");
-    expandSidebarBtn.classList.add("hidden");
+    if (expandSidebarBtn) {
+      expandSidebarBtn.classList.add("hidden");
+    }
     if (sidebarBackdrop) {
       sidebarBackdrop.classList.remove("hidden");
       // Force layout reflow
@@ -918,6 +931,15 @@ function setSidebarState(hidden: boolean) {
       sidebarBackdrop.classList.remove("opacity-0", "pointer-events-none");
       sidebarBackdrop.classList.add("opacity-100");
     }
+
+    // Lock scrolling while open to prevent background scrolling
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    if (prompterScrollContainer) {
+      prompterScrollContainer.style.overflowY = "hidden";
+    }
+
+    console.log("[MOBILE MENU] Drawer opened");
   }
 }
 
@@ -1680,23 +1702,24 @@ function updateMobileUiForMode() {
 }
 
 // Bind Compact Mobile Top Bar elements
-const mobileMenuBtn = document.getElementById("mobile-menu-btn");
-const mobileModeAutoBtn = document.getElementById("mobile-mode-auto-btn");
-const mobileModeManualBtn = document.getElementById("mobile-mode-manual-btn");
+const mobileMenuBtn = document.getElementById("mobile-menu-btn") as HTMLButtonElement | null;
+const mobileModeAutoBtn = document.getElementById("mobile-mode-auto-btn") as HTMLButtonElement | null;
+const mobileModeManualBtn = document.getElementById("mobile-mode-manual-btn") as HTMLButtonElement | null;
 const mobileSpeechLanguageSelect = document.getElementById("mobile-speech-language-select") as HTMLSelectElement | null;
+const mobileCloseSidebarBtn = document.getElementById("mobile-close-sidebar-btn") as HTMLButtonElement | null;
 
 if (mobileMenuBtn) {
-  mobileMenuBtn.addEventListener("click", () => {
+  bindButton(mobileMenuBtn, () => {
     setSidebarState(!settings.hideControls);
   });
 }
 if (mobileModeAutoBtn) {
-  mobileModeAutoBtn.addEventListener("click", () => {
+  bindButton(mobileModeAutoBtn, () => {
     applyControlMode("auto");
   });
 }
 if (mobileModeManualBtn) {
-  mobileModeManualBtn.addEventListener("click", () => {
+  bindButton(mobileModeManualBtn, () => {
     applyControlMode("manual");
   });
 }
@@ -1730,12 +1753,21 @@ bindButton(collapseBtnSidebar, () => {
   setSidebarState(true);
 });
 
-bindButton(expandSidebarBtn, () => {
-  setSidebarState(false);
-});
+if (mobileCloseSidebarBtn) {
+  bindButton(mobileCloseSidebarBtn, () => {
+    setSidebarState(true);
+  });
+}
+
+if (expandSidebarBtn) {
+  bindButton(expandSidebarBtn, () => {
+    setSidebarState(false);
+  });
+}
 
 if (sidebarBackdrop) {
   bindButton(sidebarBackdrop, () => {
+    console.log("[MOBILE MENU] Backdrop clicked");
     setSidebarState(true);
   });
 }

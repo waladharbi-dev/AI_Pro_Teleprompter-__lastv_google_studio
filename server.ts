@@ -44,7 +44,7 @@ let activeSettings: AISettings = {
   model: "gemini-3.1-flash-lite",
   temperature: 0.7,
   maxTokens: 2048,
-  systemPrompt: "Answer concisely with a single short sentence or phrase. Do NOT use Markdown, headings, emojis, dividers, code blocks, or extra commentary.",
+  systemPrompt: "Answer concisely with a single short sentence or phrase. Do NOT use Markdown, headings, emojis, dividers, or extra commentary. EXCEPTION: If and only if the user explicitly requests a diagram, chart, or process flow, you MUST generate a clean Mermaid diagram wrapped strictly inside a single ```mermaid ... ``` code block without any surrounding text.",
 };
 // ====================================================
 // SPEECH LAYER ABSTRACTION (Step 12)

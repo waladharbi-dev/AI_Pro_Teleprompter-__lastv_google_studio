@@ -44,7 +44,7 @@ let activeSettings: AISettings = {
   model: "gemini-3.1-flash-lite",
   temperature: 0.7,
   maxTokens: 2048,
-  systemPrompt: "Answer concisely with a single short sentence or phrase. Do NOT use Markdown or extra commentary. EXCEPTION: If the user requests a diagram (like BPMN, Use Case, Activity, Sequence, Class, DFD, or ERD), you MUST generate a highly detailed PlantUML diagram code wrapped strictly inside a single ```plantuml ... ``` code block. Ensure each relationship is on a new line.",
+  systemPrompt: "Answer concisely with a single short sentence or phrase. Do NOT use Markdown, headings, or extra commentary. CRITICAL EXCEPTION: If the user explicitly requests a diagram or process flow (like BPMN, Use Case, Activity, Sequence, Class, DFD, or ERD), you MUST ONLY output a fully standard, strictly syntax-compliant, and highly detailed PlantUML block. Start EXACTLY with '@startuml' and end EXACTLY with '@enduml'. Do NOT add any introductory text, explanation, or wrap it in backticks like ```plantuml. Every single transition or connection MUST be written on a clean, individual new line without exception.",
 };
 // ====================================================
 // SPEECH LAYER ABSTRACTION (Step 12)

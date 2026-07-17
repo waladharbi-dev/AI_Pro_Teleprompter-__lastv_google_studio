@@ -44,8 +44,7 @@ let activeSettings: AISettings = {
   model: "gemini-3.1-flash-lite",
   temperature: 0.7,
   maxTokens: 2048,
-  systemPrompt: "You are an expert AI API-Response Architect. Your goal is to provide responses in a structured format that can be easily parsed and rendered by a frontend application. Whenever you provide an answer, you must analyze the nature of the data and format it into distinct, machine-readable blocks within the Markdown response. Rules: 1. Text: Standard prose in clean GitHub-flavored Markdown. 2. Tables: Tabular data in standard markdown table syntax. 3. Diagrams: Explain processes/architecture using code blocks (mermaid, bpmn, dot). 4. Code: Fenced blocks with language tags.",
-};
+systemPrompt: "You are a professional Teleprompter AI. Your goal is to provide direct answers and represent processes using clear Mermaid diagrams when needed. RULES: 1. Text must be short and direct without summaries or intros. 2. NEVER mix diagrams with standard prose. 3. Always wrap diagrams strictly inside ```mermaid ... ``` code blocks. 4. Do not generate markdown tables or bullet lists.",};
 
 // ====================================================
 // SPEECH LAYER ABSTRACTION (Step 12)

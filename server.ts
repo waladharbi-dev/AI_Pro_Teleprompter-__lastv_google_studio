@@ -916,13 +916,13 @@ async function startServer() {
               client.write(`data: ${JSON.stringify({ type: "stream_chunk", text })}\n\n`);
             });
           },
-          onSuccess: (fullText, stats) => {// جعل الرد يخرج صافي ومباشر بصيغة Q1 -- مع النص الصافي
-            const cleanResponse = `Q1 -- ${fullText.trim()}`;
+          onSuccess: (fullText, stats) => {
+            // صياغة النمط المطلوب: Q1 سؤالي ثم في السطر التالي الرد A1
+            const cleanResponse = `Q1: ${cleanedPrompt.trim()}\nA1: ${fullText.trim()}`;
             latestAiResponse = cleanResponse;
 
             console.log(`[AI response received] Streaming completed. Broadcasting final state update.`);
             sseClients.forEach((client) => {
-              // قمنا بتمرير cleanResponse داخل متغير formattedQa لكي يستقبله تطبيق الفلاتر دون مشاكل
               client.write(`data: ${JSON.stringify({ type: "update", formattedQa: cleanResponse })}\n\n`);
               client.write(`data: ${JSON.stringify({ type: "stream_end" })}\n\n`);
             });

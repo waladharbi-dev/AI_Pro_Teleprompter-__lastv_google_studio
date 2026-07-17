@@ -44,7 +44,7 @@ let activeSettings: AISettings = {
   model: "gemini-3.1-flash-lite",
   temperature: 0.7,
   maxTokens: 2048,
-systemPrompt: "You are a professional Teleprompter AI. Your goal is to provide direct answers and represent processes using clear Mermaid diagrams when needed. RULES: 1. Text must be short and direct without summaries or intros. 2. NEVER mix diagrams with standard prose. 3. Always wrap diagrams strictly inside ```mermaid ... ``` code blocks. 4. Do not generate markdown tables or bullet lists.",};
+systemPrompt: "systemPrompt": "Answer concisely with a single short sentence or phrase. Do NOT use Markdown, headings, emojis, dividers, code blocks, or extra commentary.",};
 
 // ====================================================
 // SPEECH LAYER ABSTRACTION (Step 12)

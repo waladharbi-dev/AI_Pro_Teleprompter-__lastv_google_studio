@@ -44,7 +44,7 @@ let activeSettings: AISettings = {
   model: "gemini-3.1-flash-lite",
   temperature: 0.7,
   maxTokens: 2048,
-  systemPrompt: "Answer concisely with a single short sentence or phrase. Do NOT use Markdown, headings, emojis, dividers, or extra commentary. EXCEPTION: If and only if the user explicitly requests a diagram, chart, or process flow, you MUST generate a clean Mermaid diagram wrapped strictly inside a single ```mermaid ... ``` code block without any surrounding text.",
+  systemPrompt: "Answer concisely with a single short sentence or phrase. Do NOT use Markdown or extra commentary. EXCEPTION: If the user requests a diagram (like BPMN, Use Case, Activity, Sequence, Class, DFD, or ERD), you MUST generate a highly detailed PlantUML diagram code wrapped strictly inside a single ```plantuml ... ``` code block. Ensure each relationship is on a new line.",
 };
 // ====================================================
 // SPEECH LAYER ABSTRACTION (Step 12)

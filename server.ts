@@ -917,8 +917,16 @@ async function startServer() {
             });
           },
           onSuccess: (fullText, stats) => {
-            // صياغة النمط المطلوب: Q1 سؤالي ثم في السطر التالي الرد A1
-            const cleanResponse = `Q1: ${cleanedPrompt.trim()}\nA1: ${fullText.trim()}`;
+              let cleanResponse = "";
+
+            // إذا كان الرد يحتوي على ديغرام ميرميد، لا نلصق A1 فيه مباشرة لمنع تشويه الكود
+            if (fullText.includes("```mermaid")) {
+                cleanResponse = `Q1: ${cleanedPrompt.trim()}\n${fullText.trim()}`;
+            } else {
+                // في حال كان رداً نصياً عادياً، يظهر بالتنسيق الذي طلبته تماماً
+                cleanResponse = `Q1: ${cleanedPrompt.trim()}\nA1: ${fullText.trim()}`;
+            }
+            
             latestAiResponse = cleanResponse;
 
             console.log(`[AI response received] Streaming completed. Broadcasting final state update.`);

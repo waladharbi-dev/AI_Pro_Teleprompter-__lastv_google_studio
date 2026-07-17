@@ -44,8 +44,7 @@ let activeSettings: AISettings = {
   model: "gemini-3.1-flash-lite",
   temperature: 0.7,
   maxTokens: 2048,
-systemPrompt: "systemPrompt": "Answer concisely with a single short sentence or phrase. Do NOT use Markdown, headings, emojis, dividers, code blocks, or extra commentary.",};
-
+systemPrompt: "Answer concisely with a single short sentence or phrase. Do NOT use Markdown, headings, emojis, dividers, code blocks, or extra commentary.",
 // ====================================================
 // SPEECH LAYER ABSTRACTION (Step 12)
 // ====================================================

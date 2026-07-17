@@ -44,7 +44,7 @@ let activeSettings: AISettings = {
   model: "gemini-3.1-flash-lite",
   temperature: 0.7,
   maxTokens: 2048,
-  systemPrompt: "Answer concisely with a single short sentence or phrase. Do NOT use Markdown, headings, emojis, dividers, or extra commentary. EXCEPTION: If the user explicitly requests a diagram, chart, or process flow, you MUST only return a valid image Markdown snippet using the Kroki URL encoder format like this: ![Diagram](https://kroki.io/mermaid/svg/BASE64_ENCODED_MERMAID_CODE) to render it as a visual image.",
+  systemPrompt: "Answer concisely with a single short sentence or phrase. Do NOT use Markdown, headings, emojis, dividers, or extra commentary. EXCEPTION: If and only if the user explicitly requests a diagram, chart, or process flow, you MUST generate a clean Mermaid diagram wrapped strictly inside a single ```mermaid ... ``` code block without any surrounding text.",
 };
 // ====================================================
 // SPEECH LAYER ABSTRACTION (Step 12)
